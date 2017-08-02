@@ -1,5 +1,10 @@
 Node.js wrapper for the Google Contacts API.
 
+# This is not the actual google-contacts node-js support library
+I had to create an app as a part of my project and I came across this. It supports retrieving contact but not create, delete and update so as per my requiremnt I made the changes. 
+
+You can use this as per your requirement and let me know if my there are any issues. 
+
 # Install
 
 ```
