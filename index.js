@@ -140,6 +140,213 @@ GoogleContacts.prototype.getContact = function (cb, params) {
 
 };
 
+GoogleContacts.prototype._createContact = function (params, cb) {
+    
+    //Make the XML for request
+    var body = '<atom:entry xmlns:atom="http://www.w3.org/2005/Atom" xmlns:gd="http://schemas.google.com/g/2005"> ';
+        body += '<atom:category scheme="http://schemas.google.com/g/2005#kind" term="http://schemas.google.com/contact/2008#contact"/> ';
+        body += '<gd:name><gd:givenName>'+ params.givenName+'</gd:givenName></gd:name> ';
+        body += '<gd:phoneNumber rel="http://schemas.google.com/g/2005#home">'+ params.phoneNumber+'</gd:phoneNumber> </atom:entry>';
+
+    var opts = {
+        host: 'www.google.com',
+        port: 443,
+        path: '/m8/feeds/contacts/default/full/',
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + this.token,
+            'GData-Version': 3,
+            'Content-Type': 'application/atom+xml',
+            'Content-Length': body.length
+        }
+    };
+
+    debug(opts);
+
+    var buffer = "";
+
+    var req = https.request(opts, function( res )    {
+        var data = '';
+
+        res.on('data', function (chunk) {
+            debug('got ' + chunk.length + ' bytes');
+            data += chunk.toString('utf-8');
+        });
+
+        res.on('end', function () {
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+                return cb(error);
+            }
+            try {
+                debug(data);
+                cb(null, data);
+            }
+            catch (err) {
+                cb(err);
+            }
+        });
+    });
+
+    req.on('error', function(e) {
+        cb(e);
+    });
+    
+    req.write(body);
+    req.end();
+
+};
+
+GoogleContacts.prototype.saveContact = function(params, cb) {
+    var self = this;
+
+    if(!_.has(params, 'givenName')){
+        return cb("No Name found in params");
+    }
+
+    this._createContact(params, function(err, response) {
+        if(err) return cb(err);
+        cb(null, response);
+    });
+
+
+};
+
+GoogleContacts.prototype._updateContact = function (params, cb) {
+    
+    var body =  '<entry gd:etag='+params.etag+'>';
+        body += ' <id>http://www.google.com/m8/feeds/contacts/default/base/' + params.id + '</id>';
+    	body += ' <gd:name><gd:givenName>'+ params.givenName+'</gd:givenName></gd:name>';
+    	body += ' <gd:phoneNumber rel="http://schemas.google.com/g/2005#home" primary="true">'+ params.phoneNumber+'</gd:phoneNumber> </entry>';
+
+    var opts = {
+        host: 'www.google.com',
+        port: 443,
+        path: '/m8/feeds/contacts/default/full/' + params.id,
+        method: 'PUT',
+        headers: {
+            'Authorization': 'Bearer ' + this.token,
+            'GData-Version': 3,
+            'Content-Type': 'application/atom+xml',
+            'Content-Length': body.length,
+            'If-Match': params.etag
+        }
+    };
+
+    debug(opts);
+
+    var buffer = "";
+
+    var req = https.request(opts, function( res )    {
+        var data = '';
+
+        res.on('data', function (chunk) {
+            debug('got ' + chunk.length + ' bytes');
+            data += chunk.toString('utf-8');
+        });
+
+        res.on('end', function () {
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+                return cb(error);
+            }
+            try {
+                debug(data);
+                cb(null, data);
+            }
+            catch (err) {
+                cb(err);
+            }
+        });
+    });
+
+    req.on('error', function(e) {
+        cb(e);
+    });
+    
+    req.write(body);
+    req.end();
+
+};
+
+GoogleContacts.prototype.updateContact = function(params, cb) {
+    var self = this;
+
+    if(!_.has(params, 'etag')){
+        return cb("No etag found in params");
+    }
+
+    this._updateContact(params, function(err, response) {
+        if(err) return cb(err);
+        cb(null, response);
+    });
+
+
+};
+
+//Delete Contact
+GoogleContacts.prototype._deleteContact = function (params, cb) {
+    
+    var opts = {
+        host: 'www.google.com',
+        port: 443,
+        path: '/m8/feeds/contacts/default/full/' + params.id,
+        method: 'DELETE',
+        headers: {
+            'Authorization': 'Bearer ' + this.token,
+            'GData-Version': 3,
+            'If-Match': params.etag
+        }
+    };
+
+    debug(opts);
+
+    var buffer = "";
+
+    var req = https.request(opts, function( res )    {
+        var data = '';
+
+        res.on('data', function (chunk) {
+            debug('got ' + chunk.length + ' bytes');
+            data += chunk.toString('utf-8');
+        });
+
+        res.on('end', function () {
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+                return cb(error);
+            }
+            try {
+                debug(data);
+                cb(null, data);
+            }
+            catch (err) {
+                cb(err);
+            }
+        });
+    });
+
+    req.on('error', function(e) {
+        cb(e);
+    });
+    
+    req.end();
+
+};
+
+GoogleContacts.prototype.deleteContact = function(params, cb) {
+    var self = this;
+
+    if(!_.has(params, 'etag')){
+        return cb("No etag found in params");
+    }
+
+    this._deleteContact(params, function(err, response) {
+        if(err) return cb(err);
+        cb(null, response);
+    });
+
+
+};
+
+
 GoogleContacts.prototype._saveContactsFromFeed = function (feed) {
     var self = this;
     _.each(feed.entry, function (entry) {
@@ -147,6 +354,7 @@ GoogleContacts.prototype._saveContactsFromFeed = function (feed) {
         if (self.params.thin) {
             url = _.get(entry, 'id.$t', '');
             el = {
+            	etag: _.get(entry, 'gd$etag'),
                 name: _.get(entry, 'title.$t'),
                 email: _.get(entry, 'gd$email.0.address'), // only save first email
                 phoneNumber: _.get(entry, 'gd$phoneNumber.0.uri', '').replace('tel:', ''),
